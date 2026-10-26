@@ -1,0 +1,556 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Livepad – write HTML, see it live</title>
+<meta name="description" content="A simple live HTML editor. Write HTML, CSS and JS on the left, see the rendered page on the right.">
+<link rel="icon" href="data:image/svg+xml,<svg xmlns=%22http://www.w3.org/2000/svg%22 viewBox=%220 0 100 100%22><text y=%22.9em%22 font-size=%2290%22>▶️</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bricolage+Grotesque:wght@500;700&family=JetBrains+Mono:wght@400;500&display=swap" rel="stylesheet">
+<style>
+:root{
+  --bg:#e8edf2; --panel:#ffffff; --ink:#14213d; --muted:#5b6b82; --line:#cfd8e3;
+  --accent:#2f5bea; --accent-ink:#ffffff; --ok:#1f8a5b; --editor:#fbfcfe; --warn:#a96a00; --err:#cf3b3b;
+  --ui:"Bricolage Grotesque",system-ui,-apple-system,"Segoe UI",sans-serif;
+  --mono:"JetBrains Mono",ui-monospace,SFMono-Regular,Menlo,Consolas,monospace;
+}
+@media (prefers-color-scheme:dark){
+  :root:not([data-theme="light"]){
+    --bg:#0f1624; --panel:#18233a; --ink:#e6ecf6; --muted:#93a3bd; --line:#2a3a59;
+    --accent:#6f93ff; --accent-ink:#0f1624; --ok:#4fd1a0; --editor:#121b2e; --warn:#f0b34d; --err:#ff7a7a;
+  }
+}
+:root[data-theme="dark"]{
+  --bg:#0f1624; --panel:#18233a; --ink:#e6ecf6; --muted:#93a3bd; --line:#2a3a59;
+  --accent:#6f93ff; --accent-ink:#0f1624; --ok:#4fd1a0; --editor:#121b2e; --warn:#f0b34d; --err:#ff7a7a;
+}
+*{box-sizing:border-box}
+html,body{height:100%;margin:0}
+body{height:100vh;height:100dvh;overflow:hidden}
+body{background:var(--bg);color:var(--ink);font-family:var(--ui);display:flex;flex-direction:column;
+  padding-top:env(safe-area-inset-top,0px);padding-bottom:env(safe-area-inset-bottom,0px)}
+button,select{font:inherit;color:inherit}
+:focus-visible{outline:2px solid var(--accent);outline-offset:2px}
+
+header{display:flex;flex-wrap:wrap;align-items:center;gap:.6rem 1rem;padding:.7rem 1rem;background:var(--panel);border-bottom:1px solid var(--line)}
+.brand{font-weight:700;font-size:1.25rem;letter-spacing:-.02em;margin-right:auto;display:flex;align-items:center;gap:.5rem}
+.brand i{width:.85rem;height:.85rem;background:var(--accent);display:inline-block;clip-path:polygon(0 0,100% 50%,0 100%)}
+.brand small{font-weight:500;font-size:.85rem;color:var(--muted)}
+.group{display:flex;flex-wrap:wrap;gap:.4rem;align-items:center;min-width:0}
+.btn{background:transparent;border:1px solid var(--line);border-radius:8px;padding:.45rem .8rem;cursor:pointer;font-weight:500;transition:background .15s,border-color .15s}
+.btn:hover{border-color:var(--accent);background:color-mix(in srgb,var(--accent) 10%,transparent)}
+.btn.primary{background:var(--accent);color:var(--accent-ink);border-color:var(--accent)}
+.btn.primary:hover{filter:brightness(1.08)}
+select.btn{padding-right:.4rem}
+.seg{display:inline-flex;border:1px solid var(--line);border-radius:8px;overflow:hidden}
+.seg button{background:transparent;border:0;padding:.45rem .7rem;cursor:pointer;font-weight:500}
+.seg button[aria-pressed="true"]{background:var(--ink);color:var(--panel)}
+
+main{flex:1;min-height:0;min-width:0;display:grid;grid-template-columns:minmax(0,var(--a,1fr)) 14px minmax(0,var(--b,1fr));grid-template-rows:minmax(0,1fr);gap:0;padding:.75rem}
+.pane{position:relative;display:flex;flex-direction:column;min-height:0;min-width:0;background:var(--panel);border:1px solid var(--line);border-radius:12px;overflow:hidden}
+.pane h2{margin:0;gap:.75rem;white-space:nowrap;flex:none;font-size:.95rem;font-weight:700;padding:.55rem .9rem;border-bottom:1px solid var(--line);display:flex;justify-content:space-between;align-items:center}
+.pane h2 span{font-weight:500;color:var(--muted);font-size:.85rem}
+textarea{flex:1;min-height:0;min-width:0;width:100%;display:block;border:0;resize:none;padding:1rem;background:var(--editor);color:var(--ink);
+  font-family:var(--mono);font-size:.9rem;line-height:1.6;tab-size:2;white-space:pre;overflow:auto}
+textarea:focus{outline:none}
+.stage{flex:1;min-height:0;overflow:auto;display:flex;justify-content:center;background:
+  repeating-conic-gradient(color-mix(in srgb,var(--line) 45%,transparent) 0 25%,transparent 0 50%) 0 0/16px 16px}
+iframe{border:0;background:#fff;height:100%;width:100%;transition:width .2s ease}
+.stage[data-size="tablet"] iframe{width:768px;max-width:100%}
+.stage[data-size="phone"] iframe{width:375px;max-width:100%}
+.stage:not([data-size="full"]) iframe{box-shadow:0 0 0 1px var(--line)}
+
+.meta{display:flex;flex-wrap:wrap;gap:.4rem 1.2rem;align-items:center;min-width:0}
+footer{display:flex;flex-direction:column;gap:.35rem;padding:.5rem 1rem .7rem;color:var(--muted);font-size:.85rem;border-top:1px solid var(--line);background:var(--panel)}
+footer label{display:flex;gap:.4rem;align-items:center;cursor:pointer}
+#status{margin-left:auto;color:var(--ok);font-weight:500;background:color-mix(in srgb,var(--ok) 14%,transparent);padding:.15rem .7rem;border-radius:99px}
+#status:empty{display:none}
+#status button{margin-left:.6rem;background:none;border:0;padding:0;color:var(--accent);font:inherit;font-weight:700;text-decoration:underline;cursor:pointer}
+.credit{margin:0;text-align:center;font-size:.95rem;color:var(--ink)}
+.credit a{color:var(--accent);text-decoration:none;font-weight:700;font-size:1.05rem;padding-bottom:1px;
+  background:linear-gradient(currentColor,currentColor) 0 100%/0 2px no-repeat;transition:background-size .3s ease}
+.credit a:hover,.credit a:focus-visible{background-size:100% 2px}
+
+/* motion */
+@keyframes rise{from{opacity:0;transform:translateY(14px)}to{opacity:1;transform:none}}
+@keyframes pop{from{opacity:0;transform:translateY(6px) scale(.94)}to{opacity:1;transform:none}}
+@keyframes sweep{0%{transform:scaleX(0);opacity:1}75%{transform:scaleX(1);opacity:1}100%{transform:scaleX(1);opacity:0}}
+@keyframes spin{to{transform:rotate(360deg)}}
+header{animation:rise .5s ease both}
+#editorPane{animation:rise .55s .08s ease both}
+#previewPane{animation:rise .55s .18s ease both}
+footer{animation:rise .5s .3s ease both}
+.bar{position:absolute;left:0;right:0;top:0;height:3px;background:var(--accent);transform-origin:left;transform:scaleX(0);opacity:0;pointer-events:none;z-index:2}
+.bar.go{animation:sweep .65s ease-out}
+.brand i.spin{animation:spin .6s ease}
+#status.show{animation:pop .25s ease}
+.btn:hover{transform:translateY(-1px)}
+.btn:active{transform:scale(.96)}
+.btn{transition:background .15s,border-color .15s,transform .12s}
+.seg button{transition:background .2s,color .2s}
+.pane{transition:border-color .2s,box-shadow .2s}
+.pane:focus-within{border-color:var(--accent);box-shadow:0 0 0 3px color-mix(in srgb,var(--accent) 18%,transparent)}
+body{transition:background .3s,color .3s}
+/* resize handle */
+.handle{cursor:col-resize;display:flex;justify-content:center;align-items:center;touch-action:none;outline:none}
+.handle span{width:4px;height:44px;border-radius:4px;background:var(--line);transition:background .15s,height .2s}
+.handle:hover span,.handle:focus-visible span,main.dragging .handle span{background:var(--accent);height:76px}
+main.dragging{user-select:none;cursor:col-resize}
+main.dragging iframe{pointer-events:none}
+/* console */
+.btn.small{padding:.2rem .6rem;font-size:.82rem}
+.console{flex:none;border-top:1px solid var(--line);background:var(--editor)}
+.console-bar{display:flex;align-items:center;justify-content:space-between;padding:.3rem .6rem .3rem .3rem}
+#conToggle{background:none;border:0;cursor:pointer;font-weight:700;font-size:.9rem;padding:.3rem .6rem;display:flex;align-items:center;gap:.5rem;border-radius:6px}
+#conToggle::before{content:"";border:5px solid transparent;border-left-color:currentColor;transition:transform .2s}
+#conToggle[aria-expanded="true"]::before{transform:rotate(90deg) translateX(2px)}
+#conN{font-weight:500;font-size:.78rem;background:var(--line);padding:.05rem .5rem;border-radius:99px}
+.console-body{height:0;overflow:auto;font-family:var(--mono);font-size:.82rem;transition:height .25s ease}
+.console.open .console-body{height:150px}
+.console-body:empty::before{content:"console.log() output and errors appear here.";display:block;padding:.5rem .9rem;color:var(--muted)}
+.line{padding:.3rem .9rem;border-top:1px solid color-mix(in srgb,var(--line) 60%,transparent);white-space:pre-wrap;word-break:break-word;animation:pop .2s ease both}
+.line.warn{color:var(--warn);background:color-mix(in srgb,var(--warn) 10%,transparent)}
+.line.error{color:var(--err);background:color-mix(in srgb,var(--err) 10%,transparent)}
+
+/* editor tabs */
+textarea[hidden]{display:none}
+.tabbar{flex:none;display:flex;justify-content:space-between;align-items:center;gap:.75rem;white-space:nowrap;border-bottom:1px solid var(--line);padding:0 .9rem 0 .4rem}
+.tabbar #pos{font-weight:500;color:var(--muted);font-size:.85rem}
+.etabs{display:flex;gap:.1rem}
+.etabs button{position:relative;background:none;border:0;cursor:pointer;font-weight:700;font-size:.95rem;padding:.65rem .8rem;color:var(--muted);transition:color .2s}
+.etabs button:hover{color:var(--ink)}
+.etabs button::before{content:"";position:absolute;left:.6rem;right:.6rem;bottom:-1px;height:3px;border-radius:3px 3px 0 0;background:var(--accent);transform:scaleX(0);transition:transform .22s ease}
+.etabs button[aria-selected="true"]{color:var(--ink)}
+.etabs button[aria-selected="true"]::before{transform:scaleX(1)}
+.etabs button.has::after{content:"";display:inline-block;width:6px;height:6px;border-radius:50%;background:var(--ok);margin-left:.4rem;vertical-align:middle;animation:pop .25s ease both}
+
+/* help button, typing nudge, dialog */
+header{position:relative;z-index:5}
+@media (max-width:1500px){.brand small{display:none}}
+.helpwrap{position:relative}
+.help{width:40px;height:40px;border-radius:50%;border:1px solid var(--line);background:transparent;font-weight:700;font-size:1.15rem;line-height:1;cursor:pointer;display:grid;place-items:center;padding:0;transition:background .15s,color .15s,border-color .15s,transform .2s}
+.help:hover{background:var(--accent);color:var(--accent-ink);border-color:var(--accent);transform:rotate(-10deg) scale(1.06)}
+.nudge{position:absolute;top:calc(100% + 12px);right:0;z-index:30;background:var(--ink);color:var(--panel);padding:.45rem .85rem;border-radius:10px;font-weight:600;font-size:.92rem;white-space:nowrap;min-width:5.2rem;opacity:0;transform:translateY(-4px);pointer-events:none;transition:opacity .3s,transform .3s}
+.nudge.on{opacity:1;transform:none}
+.nudge::before{content:"";position:absolute;top:-6px;right:15px;border:6px solid transparent;border-top:0;border-bottom-color:var(--ink)}
+.nudge i{display:inline-block;width:2px;height:1em;background:currentColor;margin-left:2px;vertical-align:-2px;animation:blink .8s steps(1) infinite}
+@keyframes blink{50%{opacity:0}}
+dialog{border:1px solid var(--line);border-radius:14px;padding:0;background:var(--panel);color:var(--ink);width:min(34rem,calc(100vw - 2rem));box-shadow:0 24px 70px rgba(8,16,34,.4)}
+dialog::backdrop{background:rgba(10,18,34,.55);backdrop-filter:blur(2px)}
+dialog[open]{animation:pop .22s ease both}
+.dlg{padding:1.4rem 1.5rem 1.2rem;max-height:calc(100dvh - 2rem);display:flex;flex-direction:column;overflow:hidden}
+.dlg h2{flex:none;margin:0 0 .8rem;font-size:1.35rem;letter-spacing:-.01em}
+.dlg ul{margin:0;min-height:0;overflow:auto;padding:0 .4rem 0 1.1rem;display:grid;gap:.55rem;line-height:1.5}
+.dlg li::marker{color:var(--accent)}
+.hire{flex:none;margin:1rem 0;padding:.8rem 1rem;border-radius:10px;background:color-mix(in srgb,var(--accent) 12%,transparent);line-height:1.5}
+.hire a{color:var(--accent);font-weight:700;text-decoration:none}
+.hire a:hover{text-decoration:underline}
+.dlg .btn{flex:none;align-self:flex-end}
+
+.tabs{display:none}
+
+@media (max-width:820px){
+  main{grid-template-columns:minmax(0,1fr);grid-template-rows:auto minmax(0,1fr);gap:.75rem}
+  .handle{display:none}
+  header{padding:.6rem .75rem}
+  .brand{flex:1 0 100%;padding-right:3rem}
+  .helpwrap{position:absolute;top:.6rem;right:.75rem}
+  .tabs{display:inline-flex;justify-self:start}
+  main[data-view="code"] #previewPane,main[data-view="preview"] #editorPane{display:none}
+  .sizes{display:none}
+  #tip{display:none}
+  .brand small{display:none}
+}
+@media (prefers-reduced-motion:reduce){*,*::before,*::after{transition:none!important;animation:none!important}}
+</style>
+</head>
+<body>
+
+<header>
+  <div class="brand"><i></i>Livepad <small>write HTML, see it live</small></div>
+  <div class="group">
+    <select id="examples" class="btn" aria-label="Load an example">
+      <option value="">Examples…</option>
+      <option value="starter">Starter page</option>
+      <option value="counter">Click counter (JavaScript)</option>
+      <option value="layout">Flexbox card layout</option>
+      <option value="form">Signup form</option>
+      <option value="console">Console demo (logs + error)</option>
+    </select>
+    <div class="seg sizes" role="group" aria-label="Preview width">
+      <button type="button" data-size="phone" aria-pressed="false">Phone</button>
+      <button type="button" data-size="tablet" aria-pressed="false">Tablet</button>
+      <button type="button" data-size="full" aria-pressed="true">Full</button>
+    </div>
+  </div>
+  <div class="group">
+    <button class="btn" id="copy" type="button">Copy code</button>
+    <button class="btn" id="newtab" type="button">New tab</button>
+    <button class="btn" id="download" type="button" title="Save everything you wrote as one .html file">Download code</button>
+    <button class="btn primary" id="run" type="button" title="Ctrl/Cmd + Enter">Run</button>
+    <button class="btn" id="theme" type="button" aria-label="Toggle dark mode">Theme</button>
+  </div>
+  <div class="helpwrap">
+    <button class="help" id="help" type="button" aria-label="How Livepad works" aria-haspopup="dialog">?</button>
+    <div class="nudge" id="nudge" aria-hidden="true"><span id="nudgeText"></span><i></i></div>
+  </div>
+</header>
+
+<main id="main" data-view="code">
+  <div class="seg tabs" role="group" aria-label="Switch view">
+    <button type="button" data-view="code" aria-pressed="true">Code</button>
+    <button type="button" data-view="preview" aria-pressed="false">Preview</button>
+  </div>
+
+  <section class="pane" id="editorPane">
+    <div class="tabbar">
+      <div class="etabs" role="tablist" aria-label="Code files">
+        <button type="button" role="tab" data-lang="html" aria-selected="true">HTML</button>
+        <button type="button" role="tab" data-lang="css" aria-selected="false">CSS</button>
+        <button type="button" role="tab" data-lang="js" aria-selected="false">JS</button>
+      </div>
+      <span id="pos">Line 1, Col 1</span>
+    </div>
+    <textarea id="ed-html" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="HTML code"></textarea>
+    <textarea id="ed-css" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="CSS code" hidden></textarea>
+    <textarea id="ed-js" spellcheck="false" autocapitalize="off" autocomplete="off" aria-label="JavaScript code" hidden></textarea>
+  </section>
+
+  <div class="handle" id="handle" role="separator" aria-orientation="vertical" aria-label="Resize panels. Use left and right arrow keys." tabindex="0"><span></span></div>
+
+  <section class="pane" id="previewPane">
+    <div class="bar" id="bar"></div>
+    <h2>Preview <span id="size">Full width</span></h2>
+    <div class="stage" id="stage" data-size="full">
+      <iframe id="frame" title="Live preview" sandbox="allow-scripts allow-forms allow-modals allow-popups"></iframe>
+    </div>
+    <div class="console" id="console">
+      <div class="console-bar">
+        <button type="button" id="conToggle" aria-expanded="false" aria-controls="conBody">Console <span id="conN">0</span></button>
+        <button type="button" id="conClear" class="btn small">Clear</button>
+      </div>
+      <div class="console-body" id="conBody" role="log"></div>
+    </div>
+  </section>
+</main>
+
+<footer>
+  <div class="meta">
+    <label><input type="checkbox" id="auto" checked> Update as I type</label>
+    <span id="count">0 characters</span>
+    <span id="tip">Tab inserts two spaces. Ctrl/Cmd + Enter runs. Drag the divider to resize.</span>
+    <span id="status" role="status" aria-live="polite"></span>
+  </div>
+  <p class="credit">Built for devs, by <a href="https://t.me/Nivekversehub" target="_blank" rel="noopener noreferrer">𝕹𝖎𝖛𝖊𝖐†</a></p>
+</footer>
+
+<dialog id="helpDlg" aria-labelledby="helpTitle">
+  <div class="dlg">
+    <h2 id="helpTitle">How Livepad works</h2>
+    <ul>
+      <li>Write your page in the <b>HTML</b>, <b>CSS</b> and <b>JS</b> tabs on the left. The preview on the right updates a moment after you stop typing, or right away with <b>Run</b> (Ctrl/Cmd + Enter).</li>
+      <li>Your code runs inside a sandboxed frame, so whatever you write can’t break this page.</li>
+      <li>The <b>Console</b> under the preview catches <code>console.log</code> output and errors, and tells you which JS line failed.</li>
+      <li><b>Phone / Tablet / Full</b> resizes the preview so you can check how a page looks on smaller screens. Drag the divider in the middle to give either side more room.</li>
+      <li>Not sure what to write? Pick something from <b>Examples</b>. If you change your mind, hit Undo.</li>
+      <li><b>Download code</b> saves everything as one .html file. Your code stays in your own browser and is never uploaded anywhere.</li>
+    </ul>
+    <p class="hire"><b>Want to hire me?</b> I built Livepad to show what I can do. Click my name in the footer, <a href="https://t.me/Nivekversehub" target="_blank" rel="noopener noreferrer">𝕹𝖎𝖛𝖊𝖐†</a>, and message me on Telegram.</p>
+    <button class="btn primary" id="helpClose" type="button">Got it</button>
+  </div>
+</dialog>
+
+<script>
+(function(){
+  var EXAMPLES = {
+    starter: '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>Hello</title>\n  <style>\n    body { font-family: system-ui, sans-serif; margin: 0; display: grid; place-items: center; min-height: 100vh; background: #f1f5f9; }\n    .card { background: #fff; padding: 2rem 2.5rem; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,.08); max-width: 28rem; }\n    h1 { margin: 0 0 .5rem; }\n    p { color: #475569; line-height: 1.5; }\n  </style>\n</head>\n<body>\n  <div class="card">\n    <h1>Hello, world</h1>\n    <p>Edit the code on the left and this page updates instantly.</p>\n  </div>\n</body>\n</html>\n',
+    counter: '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <title>Counter</title>\n  <style>\n    body { font-family: system-ui, sans-serif; text-align: center; padding: 4rem 1rem; }\n    #n { font-size: 5rem; font-weight: 700; margin: 1rem 0; }\n    button { font-size: 1.1rem; padding: .6rem 1.2rem; margin: 0 .3rem; border: 0; border-radius: 8px; background: #2f5bea; color: #fff; cursor: pointer; }\n    button.alt { background: #e2e8f0; color: #0f172a; }\n  </style>\n</head>\n<body>\n  <h1>Click counter</h1>\n  <div id="n">0</div>\n  <button id="minus" class="alt">− 1</button>\n  <button id="plus">+ 1</button>\n  <script>\n    var count = 0;\n    var out = document.getElementById("n");\n    function update(change) {\n      count += change;\n      out.textContent = count;\n    }\n    document.getElementById("plus").onclick = function () { update(1); };\n    document.getElementById("minus").onclick = function () { update(-1); };\n  <\/script>\n</body>\n</html>\n',
+    layout: '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <meta name="viewport" content="width=device-width, initial-scale=1">\n  <title>Cards</title>\n  <style>\n    * { box-sizing: border-box; }\n    body { font-family: system-ui, sans-serif; margin: 0; padding: 2rem; background: #f8fafc; }\n    .row { display: flex; flex-wrap: wrap; gap: 1rem; }\n    .card { flex: 1 1 200px; background: #fff; border: 1px solid #e2e8f0; border-radius: 10px; padding: 1.2rem; }\n    .card h3 { margin-top: 0; }\n    .tag { display: inline-block; font-size: .8rem; padding: .15rem .6rem; border-radius: 99px; background: #dbeafe; color: #1e40af; }\n  </style>\n</head>\n<body>\n  <h1>Projects</h1>\n  <div class="row">\n    <div class="card"><span class="tag">HTML</span><h3>Landing page</h3><p>A simple responsive page.</p></div>\n    <div class="card"><span class="tag">CSS</span><h3>Flexbox cards</h3><p>Resize the preview to see them wrap.</p></div>\n    <div class="card"><span class="tag">JS</span><h3>Todo app</h3><p>Add and remove tasks.</p></div>\n  </div>\n</body>\n</html>\n',
+    form: '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <title>Signup</title>\n  <style>\n    body { font-family: system-ui, sans-serif; background: #f1f5f9; display: grid; place-items: center; min-height: 100vh; margin: 0; }\n    form { background: #fff; padding: 2rem; border-radius: 12px; width: min(22rem, 90vw); display: grid; gap: .9rem; box-shadow: 0 4px 20px rgba(0,0,0,.08); }\n    label { display: grid; gap: .3rem; font-size: .9rem; font-weight: 600; }\n    input { padding: .6rem; border: 1px solid #cbd5e1; border-radius: 8px; font-size: 1rem; }\n    button { padding: .7rem; border: 0; border-radius: 8px; background: #2f5bea; color: #fff; font-size: 1rem; cursor: pointer; }\n    #msg { margin: 0; color: #15803d; min-height: 1.2em; }\n  </style>\n</head>\n<body>\n  <form id="f">\n    <h2 style="margin:0">Create account</h2>\n    <label>Name <input name="name" required></label>\n    <label>Email <input type="email" name="email" required></label>\n    <button>Sign up</button>\n    <p id="msg"></p>\n  </form>\n  <script>\n    document.getElementById("f").addEventListener("submit", function (e) {\n      e.preventDefault();\n      var name = new FormData(e.target).get("name");\n      document.getElementById("msg").textContent = "Welcome, " + name + "!";\n    });\n  <\/script>\n</body>\n</html>\n',
+    console: '<!DOCTYPE html>\n<html lang="en">\n<head>\n  <meta charset="utf-8">\n  <title>Console demo</title>\n</head>\n<body style="font-family:system-ui;padding:2rem">\n  <h1>Open the Console panel</h1>\n  <p>This page logs messages and throws an error on purpose.</p>\n  <script>\n    console.log("Page loaded");\n    console.log("A list:", [1, 2, 3]);\n    console.warn("This is a warning");\n    var user = { name: "Ada", role: "dev" };\n    console.log(user);\n    console.log(user.age.toFixed(2));\n  <\/script>\n</body>\n</html>\n'
+  };
+
+  var $ = function(id){ return document.getElementById(id); };
+  var eds = {html:$("ed-html"), css:$("ed-css"), js:$("ed-js")}, cur = "html";
+  var frame = $("frame"), status = $("status"), timer, statusTimer, jsStart = 0, jsCount = 0;
+  var KEY = "livepad:files";
+  function ed(){ return eds[cur]; }
+  function files(){ return {html:eds.html.value, css:eds.css.value, js:eds.js.value}; }
+
+  // Split a full HTML page into HTML / CSS / JS parts (used for the examples)
+  function dedent(t){
+    var L = t.replace(/^\s*\n/, "").replace(/\s+$/, "").split("\n"), m = Infinity;
+    L.forEach(function(l){ if (l.trim()){ var k = /^ */.exec(l)[0].length; if (k < m) m = k; } });
+    if (m === Infinity) m = 0;
+    return L.map(function(l){ return l.slice(m); }).join("\n") + "\n";
+  }
+  function split(h){
+    var css = [], js = [];
+    h = h.replace(/[ \t]*<style[^>]*>([\s\S]*?)<\/style>\s*/gi, function(_, c){ css.push(dedent(c)); return ""; });
+    h = h.replace(/[ \t]*<script(?![^>]*\bsrc=)[^>]*>([\s\S]*?)<\/script>\s*/gi, function(_, c){ js.push(dedent(c)); return ""; });
+    return {html:h, css:css.join("\n"), js:js.join("\n")};
+  }
+  // Merge the three tabs back into one complete page
+  function build(f){
+    var h = f.html, m, pos, start = 0, count = 0;
+    if (f.css.trim()){
+      var block = "<style>\n" + f.css.replace(/\s+$/, "") + "\n</style>\n";
+      m = /<\/head\s*>/i.exec(h);
+      if (m){ h = h.slice(0, m.index) + block + h.slice(m.index); }
+      else {
+        m = /<head(\s[^>]*)?>/i.exec(h) || /<html(\s[^>]*)?>/i.exec(h) || /<!doctype[^>]*>/i.exec(h);
+        pos = m ? m.index + m[0].length : 0;
+        h = h.slice(0, pos) + "\n" + block + h.slice(pos);
+      }
+    }
+    if (f.js.trim()){
+      var body = f.js.replace(/\s+$/, "");
+      m = /<\/body\s*>/i.exec(h);
+      pos = m ? m.index : h.length;
+      h = h.slice(0, pos) + "<script>\n" + body + "\n<\/script>\n" + h.slice(pos);
+      start = h.slice(0, pos).split("\n").length + 1;
+      count = body.split("\n").length;
+    }
+    return {doc:h, start:start, count:count};
+  }
+
+  function store(get, k, v){
+    try { return get ? localStorage.getItem(k) : localStorage.setItem(k, v); } catch(e){ return null; }
+  }
+  function restart(el, cls){ el.classList.remove(cls); void el.offsetWidth; el.classList.add(cls); }
+  function say(msg, undo){
+    status.textContent = msg;
+    if (undo){
+      var u = document.createElement("button");
+      u.type = "button"; u.textContent = "Undo";
+      u.onclick = function(){ undo(); status.textContent = ""; };
+      status.appendChild(u);
+    }
+    restart(status, "show");
+    clearTimeout(statusTimer);
+    statusTimer = setTimeout(function(){ status.textContent = ""; }, undo ? 8000 : 2000);
+  }
+  function setFiles(f){
+    eds.html.value = f.html; eds.css.value = f.css || ""; eds.js.value = f.js || "";
+    showTab("html"); changed(); run();
+  }
+  var INJECT = "<script>(" + function(){
+    function f(a){ if(typeof a==="string") return a; if(a instanceof Error) return a.message; try{ return String(JSON.stringify(a)); }catch(e){ return String(a); } }
+    function send(t,m,l){ parent.postMessage({lp:1,t:t,m:m,l:l},"*"); }
+    ["log","info","warn","error"].forEach(function(k){ var o=console[k]; console[k]=function(){ send(k,Array.prototype.map.call(arguments,f).join(" ")); o.apply(console,arguments); }; });
+    addEventListener("error",function(e){ send("error",e.message,e.lineno); });
+    addEventListener("unhandledrejection",function(e){ send("error","Unhandled promise rejection: "+f(e.reason)); });
+  }.toString().replace(/\n\s*/g,"") + ")();<\/script>";
+  function inject(h){
+    var m = /<head(\s[^>]*)?>/i.exec(h) || /<html(\s[^>]*)?>/i.exec(h) || /<!doctype[^>]*>/i.exec(h);
+    if (!m) return INJECT + h;
+    var i = m.index + m[0].length;
+    return h.slice(0, i) + INJECT + h.slice(i);
+  }
+  var con = $("console"), conBody = $("conBody"), conN = $("conN");
+  function conOpen(o){ con.classList.toggle("open", o); $("conToggle").setAttribute("aria-expanded", o); }
+  function conClear(){ conBody.textContent = ""; conN.textContent = "0"; }
+  $("conToggle").onclick = function(){ conOpen(!con.classList.contains("open")); };
+  $("conClear").onclick = conClear;
+  window.addEventListener("message", function(e){
+    var d = e.data;
+    if (!d || d.lp !== 1 || e.source !== frame.contentWindow) return;
+    var l = document.createElement("div");
+    l.className = "line " + d.t;
+    var txt = d.m;
+    if (d.l) txt += (jsStart && d.l >= jsStart && d.l < jsStart + jsCount) ? " (JS line " + (d.l - jsStart + 1) + ")" : " (page line " + d.l + ")";
+    l.textContent = txt;
+    conBody.appendChild(l);
+    if (conBody.children.length > 200) conBody.removeChild(conBody.firstChild);
+    conN.textContent = conBody.children.length;
+    if (d.t === "error") conOpen(true);
+    conBody.scrollTop = conBody.scrollHeight;
+  });
+
+  var main = $("main"), handle = $("handle"), pct = 50;
+  function setSplit(p){
+    pct = Math.min(80, Math.max(20, p));
+    main.style.setProperty("--a", pct + "fr");
+    main.style.setProperty("--b", (100 - pct) + "fr");
+  }
+  function endDrag(){ main.classList.remove("dragging"); }
+  handle.addEventListener("pointerdown", function(e){ handle.setPointerCapture(e.pointerId); main.classList.add("dragging"); });
+  handle.addEventListener("pointermove", function(e){
+    if (!main.classList.contains("dragging")) return;
+    var r = main.getBoundingClientRect();
+    setSplit((e.clientX - r.left) / r.width * 100);
+  });
+  handle.addEventListener("pointerup", endDrag);
+  handle.addEventListener("pointercancel", endDrag);
+  handle.addEventListener("dblclick", function(){ setSplit(50); });
+  handle.addEventListener("keydown", function(e){
+    if (e.key === "ArrowLeft"){ e.preventDefault(); setSplit(pct - 3); }
+    if (e.key === "ArrowRight"){ e.preventDefault(); setSplit(pct + 3); }
+  });
+
+  function run(){
+    conClear();
+    var b = build(files());
+    jsStart = b.start; jsCount = b.count;
+    frame.srcdoc = inject(b.doc);
+    restart($("bar"), "go");
+  }
+  function updateMeta(){
+    var c = ed(), n = c.value.length;
+    $("count").textContent = n.toLocaleString() + (n === 1 ? " character" : " characters") + " in " + cur.toUpperCase();
+    document.querySelectorAll(".etabs button").forEach(function(b){ b.classList.toggle("has", !!eds[b.dataset.lang].value.trim()); });
+    var before = c.value.slice(0, c.selectionStart).split("\n");
+    $("pos").textContent = "Line " + before.length + ", Col " + (before[before.length - 1].length + 1);
+  }
+  function changed(){
+    updateMeta();
+    store(false, KEY, JSON.stringify(files()));
+    if ($("auto").checked){ clearTimeout(timer); timer = setTimeout(run, 300); }
+  }
+
+  Object.keys(eds).forEach(function(k){
+    var t = eds[k];
+    t.addEventListener("input", changed);
+    t.addEventListener("keyup", updateMeta);
+    t.addEventListener("click", updateMeta);
+    t.addEventListener("keydown", function(e){
+      if (e.key === "Tab"){
+        e.preventDefault();
+        var s = t.selectionStart, end = t.selectionEnd;
+        t.value = t.value.slice(0, s) + "  " + t.value.slice(end);
+        t.selectionStart = t.selectionEnd = s + 2;
+        changed();
+      }
+    });
+  });
+
+  function showTab(l){
+    cur = l;
+    Object.keys(eds).forEach(function(k){ eds[k].hidden = k !== l; });
+    document.querySelectorAll(".etabs button").forEach(function(b){
+      var on = b.dataset.lang === l;
+      b.setAttribute("aria-selected", on);
+      b.tabIndex = on ? 0 : -1;
+    });
+    updateMeta();
+  }
+  document.querySelectorAll(".etabs button").forEach(function(b){
+    b.onclick = function(){ showTab(b.dataset.lang); };
+    b.addEventListener("keydown", function(e){
+      var order = ["html", "css", "js"], i = order.indexOf(cur), n = null;
+      if (e.key === "ArrowRight") n = order[(i + 1) % 3];
+      if (e.key === "ArrowLeft") n = order[(i + 2) % 3];
+      if (n){ e.preventDefault(); showTab(n); document.querySelector('.etabs button[data-lang="' + n + '"]').focus(); }
+    });
+  });
+  document.addEventListener("keydown", function(e){
+    if ((e.ctrlKey || e.metaKey) && e.key === "Enter"){ e.preventDefault(); run(); say("Updated"); }
+  });
+
+  $("run").onclick = function(){ run(); restart(document.querySelector(".brand i"), "spin"); say("Updated"); };
+
+  $("examples").onchange = function(e){
+    var v = e.target.value;
+    if (!v) return;
+    var f = split(EXAMPLES[v]), now = files();
+    e.target.value = "";
+    var hadWork = (now.html + now.css + now.js).trim() && JSON.stringify(now) !== JSON.stringify(f);
+    setFiles(f);
+    if (hadWork) say("Example loaded", function(){ setFiles(now); });
+    else say("Example loaded");
+  };
+
+  $("copy").onclick = function(){
+    var c = ed(), done = function(){ say(cur.toUpperCase() + " copied"); };
+    if (navigator.clipboard && navigator.clipboard.writeText){
+      navigator.clipboard.writeText(c.value).then(done, function(){ c.select(); document.execCommand("copy"); done(); });
+    } else { c.select(); document.execCommand("copy"); done(); }
+  };
+
+  $("download").onclick = function(){
+    var url = URL.createObjectURL(new Blob([build(files()).doc], {type:"text/html"}));
+    var a = document.createElement("a");
+    a.href = url; a.download = "my-page.html";
+    document.body.appendChild(a); a.click(); a.remove();
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 1000);
+    say("Downloaded my-page.html");
+  };
+
+  $("newtab").onclick = function(){
+    var url = URL.createObjectURL(new Blob([build(files()).doc], {type:"text/html"}));
+    var w = window.open(url, "_blank");
+    if (!w) say("Allow pop-ups to open the page in a new tab");
+    setTimeout(function(){ URL.revokeObjectURL(url); }, 60000);
+  };
+
+  // Preview width
+  var labels = {phone:"Phone, 375px", tablet:"Tablet, 768px", full:"Full width"};
+  document.querySelectorAll(".sizes button").forEach(function(b){
+    b.onclick = function(){
+      var s = b.dataset.size;
+      $("stage").dataset.size = s;
+      $("size").textContent = labels[s];
+      document.querySelectorAll(".sizes button").forEach(function(x){ x.setAttribute("aria-pressed", x === b); });
+    };
+  });
+
+  // Mobile code/preview tabs
+  document.querySelectorAll(".tabs button").forEach(function(b){
+    b.onclick = function(){
+      $("main").dataset.view = b.dataset.view;
+      document.querySelectorAll(".tabs button").forEach(function(x){ x.setAttribute("aria-pressed", x === b); });
+      if (b.dataset.view === "preview") run();
+    };
+  });
+
+  // Theme
+  var saved = store(true, "livepad:theme");
+  if (saved) document.documentElement.dataset.theme = saved;
+  $("theme").onclick = function(){
+    var cur = document.documentElement.dataset.theme ||
+      (matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light");
+    var next = cur === "dark" ? "light" : "dark";
+    document.documentElement.dataset.theme = next;
+    store(false, "livepad:theme", next);
+  };
+
+  // Help dialog + first-visit "Need help?" typing nudge
+  var dlg = $("helpDlg"), nudge = $("nudge"), nudgeTimers = [];
+  function hideNudge(){ nudgeTimers.forEach(clearTimeout); nudge.classList.remove("on"); }
+  $("help").onclick = function(){
+    hideNudge();
+    if (dlg.showModal) dlg.showModal(); else dlg.setAttribute("open", "");
+  };
+  $("helpClose").onclick = function(){ dlg.close ? dlg.close() : dlg.removeAttribute("open"); };
+  dlg.addEventListener("click", function(e){ if (e.target === dlg) dlg.close(); });
+
+  if (!store(true, "livepad:seenhelp")){
+    var words = "Need help?", out = $("nudgeText");
+    var calm = matchMedia("(prefers-reduced-motion: reduce)").matches;
+    nudgeTimers.push(setTimeout(function(){
+      store(false, "livepad:seenhelp", "1");
+      nudge.classList.add("on");
+      if (calm){ out.textContent = words; }
+      else {
+        var i = 0;
+        (function tick(){
+          out.textContent = words.slice(0, ++i);
+          if (i < words.length) nudgeTimers.push(setTimeout(tick, 70 + Math.random() * 90));
+        })();
+      }
+      nudgeTimers.push(setTimeout(hideNudge, 7000));
+    }, 1200));
+  }
+
+  // Load saved work or the starter page
+  var f0 = null;
+  try { f0 = JSON.parse(store(true, KEY)); } catch(e){}
+  if (!f0 || typeof f0.html !== "string") f0 = split(store(true, "livepad:code") || EXAMPLES.starter);
+  eds.html.value = f0.html; eds.css.value = f0.css || ""; eds.js.value = f0.js || "";
+  showTab("html"); run();
+})();
+</script>
+</body>
+</html>
